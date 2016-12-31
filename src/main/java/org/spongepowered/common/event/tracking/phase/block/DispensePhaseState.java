@@ -25,12 +25,12 @@
 package org.spongepowered.common.event.tracking.phase.block;
 
 import net.minecraft.entity.item.EntityItem;
+import org.spongepowered.api.Sponge;
 import org.spongepowered.api.block.BlockSnapshot;
 import org.spongepowered.api.entity.Entity;
 import org.spongepowered.api.entity.living.player.User;
 import org.spongepowered.api.event.SpongeEventFactory;
-import org.spongepowered.api.event.cause.Cause;
-import org.spongepowered.api.event.cause.entity.spawn.BlockSpawnCause;
+import org.spongepowered.api.event.cause.EventContextKeys;
 import org.spongepowered.api.event.entity.SpawnEntityEvent;
 import org.spongepowered.api.event.item.inventory.DropItemEvent;
 import org.spongepowered.common.SpongeImpl;
@@ -54,26 +54,19 @@ final class DispensePhaseState extends BlockPhaseState {
                 .orElseThrow(TrackingUtil.throwWithContext("Could not find a block dispensing items!", phaseContext));
         phaseContext.getCapturedBlockSupplier()
                 .ifPresentAndNotEmpty(blockSnapshots -> TrackingUtil.processBlockCaptures(blockSnapshots, causeTracker, this, phaseContext));
+        Object frame = Sponge.getCauseStackManager().pushCauseFrame();
+        Sponge.getCauseStackManager().pushCause(blockSnapshot);
+        Sponge.getCauseStackManager().addContext(EventContextKeys.SPAWN_TYPE, InternalSpawnTypes.DISPENSE);
+        phaseContext.addNotifierAndOwnerToCauseStack();
         phaseContext.getCapturedItemsSupplier()
                 .ifPresentAndNotEmpty(items -> {
-                    final Cause.Builder builder = Cause.source(BlockSpawnCause.builder()
-                            .block(blockSnapshot)
-                            .type(InternalSpawnTypes.DISPENSE)
-                            .build());
-                    phaseContext.getNotifier()
-                            .ifPresent(builder::notifier);
-                    phaseContext.getOwner()
-                            .ifPresent(builder::owner);
-
-                    final Cause cause = builder
-                            .build();
                     final ArrayList<Entity> entities = new ArrayList<>();
                     for (EntityItem item : items) {
                         entities.add(EntityUtil.fromNative(item));
                     }
                     final DropItemEvent.Dispense
                             event =
-                            SpongeEventFactory.createDropItemEventDispense(cause, entities, causeTracker.getWorld());
+                            SpongeEventFactory.createDropItemEventDispense(Sponge.getCauseStackManager().getCurrentCause(), entities, causeTracker.getWorld());
                     SpongeImpl.postEvent(event);
                     if (!event.isCancelled()) {
                         for (Entity entity : event.getEntities()) {
@@ -83,20 +76,9 @@ final class DispensePhaseState extends BlockPhaseState {
                 });
         phaseContext.getCapturedEntitySupplier()
                 .ifPresentAndNotEmpty(entities -> {
-                    final Cause.Builder builder = Cause.source(BlockSpawnCause.builder()
-                            .block(blockSnapshot)
-                            .type(InternalSpawnTypes.DISPENSE)
-                            .build());
-                    phaseContext.getNotifier()
-                            .ifPresent(builder::notifier);
-                    phaseContext.getOwner()
-                            .ifPresent(builder::owner);
-
-                    final Cause cause = builder
-                            .build();
                     final SpawnEntityEvent
                             event =
-                            SpongeEventFactory.createSpawnEntityEvent(cause, entities, causeTracker.getWorld());
+                            SpongeEventFactory.createSpawnEntityEvent(Sponge.getCauseStackManager().getCurrentCause(), entities, causeTracker.getWorld());
                     SpongeImpl.postEvent(event);
                     final User user = phaseContext.getNotifier().orElseGet(() -> phaseContext.getOwner().orElse(null));
                     if (!event.isCancelled()) {
@@ -108,5 +90,6 @@ final class DispensePhaseState extends BlockPhaseState {
                         }
                     }
                 });
+        Sponge.getCauseStackManager().popCauseFrame(frame);
     }
 }

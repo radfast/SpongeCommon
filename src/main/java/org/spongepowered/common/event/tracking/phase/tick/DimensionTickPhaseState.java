@@ -26,11 +26,12 @@ package org.spongepowered.common.event.tracking.phase.tick;
 
 import net.minecraft.entity.item.EntityItem;
 import net.minecraft.world.WorldServer;
+import org.spongepowered.api.Sponge;
 import org.spongepowered.api.entity.Entity;
 import org.spongepowered.api.entity.living.player.User;
 import org.spongepowered.api.event.SpongeEventFactory;
-import org.spongepowered.api.event.cause.Cause;
-import org.spongepowered.api.event.cause.entity.spawn.SpawnCause;
+import org.spongepowered.api.event.cause.EventContextKeys;
+import org.spongepowered.api.event.cause.entity.spawn.SpawnTypes;
 import org.spongepowered.api.event.entity.SpawnEntityEvent;
 import org.spongepowered.api.world.World;
 import org.spongepowered.common.SpongeImpl;
@@ -40,7 +41,6 @@ import org.spongepowered.common.event.tracking.IPhaseState;
 import org.spongepowered.common.event.tracking.PhaseContext;
 import org.spongepowered.common.event.tracking.TrackingUtil;
 import org.spongepowered.common.event.tracking.phase.TrackingPhases;
-import org.spongepowered.common.registry.type.event.InternalSpawnTypes;
 
 import java.util.ArrayList;
 
@@ -55,6 +55,8 @@ class DimensionTickPhaseState extends TickPhaseState {
 
     @Override
     public void processPostTick(CauseTracker causeTracker, PhaseContext phaseContext) {
+        Object frame = Sponge.getCauseStackManager().pushCauseFrame();
+        Sponge.getCauseStackManager().addContext(EventContextKeys.SPAWN_TYPE, SpawnTypes.PLACEMENT);
         phaseContext.getCapturedBlockSupplier()
                 .ifPresentAndNotEmpty(blockSnapshots -> {
                     TrackingUtil.processBlockCaptures(blockSnapshots, causeTracker, this, phaseContext);
@@ -62,13 +64,8 @@ class DimensionTickPhaseState extends TickPhaseState {
 
         phaseContext.getCapturedEntitySupplier()
                 .ifPresentAndNotEmpty(entities -> {
-                    // TODO the entity spawn causes are not likely valid, need to investigate further.
-                    final Cause cause = Cause.source(SpawnCause.builder()
-                            .type(InternalSpawnTypes.PLACEMENT)
-                            .build())
-                            .build();
                     final SpawnEntityEvent event =
-                            SpongeEventFactory.createSpawnEntityEvent(cause, entities, causeTracker.getWorld());
+                            SpongeEventFactory.createSpawnEntityEvent(Sponge.getCauseStackManager().getCurrentCause(), entities, causeTracker.getWorld());
                     SpongeImpl.postEvent(event);
                     if (!event.isCancelled()) {
                         for (Entity entity : event.getEntities()) {
@@ -79,16 +76,12 @@ class DimensionTickPhaseState extends TickPhaseState {
                 });
         phaseContext.getCapturedItemsSupplier()
                 .ifPresentAndNotEmpty(entities -> {
-                    final Cause cause = Cause.source(SpawnCause.builder()
-                            .type(InternalSpawnTypes.PLACEMENT)
-                            .build())
-                            .build();
                     final ArrayList<Entity> capturedEntities = new ArrayList<>();
                     for (EntityItem entity : entities) {
                         capturedEntities.add(EntityUtil.fromNative(entity));
                     }
                     final SpawnEntityEvent event =
-                            SpongeEventFactory.createSpawnEntityEvent(cause, capturedEntities, causeTracker.getWorld());
+                            SpongeEventFactory.createSpawnEntityEvent(Sponge.getCauseStackManager().getCurrentCause(), capturedEntities, causeTracker.getWorld());
                     SpongeImpl.postEvent(event);
                     if (!event.isCancelled()) {
                         for (Entity entity : event.getEntities()) {
@@ -96,10 +89,7 @@ class DimensionTickPhaseState extends TickPhaseState {
                         }
                     }
                 });
-    }
-    @Override
-    public void associateAdditionalBlockChangeCauses(PhaseContext context, Cause.Builder builder, CauseTracker causeTracker) {
-
+        Sponge.getCauseStackManager().popCauseFrame(frame);
     }
 
     /*
@@ -122,13 +112,12 @@ class DimensionTickPhaseState extends TickPhaseState {
         }
         final ArrayList<Entity> entities = new ArrayList<>(1);
         entities.add(entity);
-        final Cause cause = Cause.source(SpawnCause.builder()
-                .type(InternalSpawnTypes.PLACEMENT)
-                .build())
-                .build();
-        final SpawnEntityEvent event = SpongeEventFactory.createSpawnEntityEvent(cause,
+        Object frame = Sponge.getCauseStackManager().pushCauseFrame();
+        Sponge.getCauseStackManager().addContext(EventContextKeys.SPAWN_TYPE, SpawnTypes.PLACEMENT);
+        final SpawnEntityEvent event = SpongeEventFactory.createSpawnEntityEvent(Sponge.getCauseStackManager().getCurrentCause(),
                 entities, (World) minecraftWorld);
         SpongeImpl.postEvent(event);
+        Sponge.getCauseStackManager().popCauseFrame(frame);
         if (!event.isCancelled() && event.getEntities().size() > 0) {
             for (Entity item: event.getEntities()) {
                 causeTracker.getMixinWorld().forceSpawnEntity(item);

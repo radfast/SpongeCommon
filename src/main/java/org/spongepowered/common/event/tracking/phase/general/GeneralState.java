@@ -25,6 +25,7 @@
 package org.spongepowered.common.event.tracking.phase.general;
 
 import net.minecraft.world.WorldServer;
+import org.spongepowered.api.Sponge;
 import org.spongepowered.api.entity.Entity;
 import org.spongepowered.api.entity.living.player.User;
 import org.spongepowered.api.event.SpongeEventFactory;
@@ -62,13 +63,6 @@ abstract class GeneralState implements IPhaseState {
      * will capture or spawn appropriately. In the case of explosions for example, the entities must be mapped
      * according to the blocks broken so that the blocks themselves can be cancelled and the entities spawned
      * are dropped from the game entirely before throwing additional events.
-     *
-     * @param causeTracker
-     * @param context
-     * @param entity
-     * @param chunkX
-     * @param chunkZ
-     * @return
      */
     public boolean spawnEntityOrCapture(CauseTracker causeTracker, PhaseContext context, Entity entity, int chunkX, int chunkZ) {
         final net.minecraft.entity.Entity minecraftEntity = (net.minecraft.entity.Entity) entity;
@@ -79,7 +73,7 @@ abstract class GeneralState implements IPhaseState {
         }
         final ArrayList<Entity> entities = new ArrayList<>(1);
         entities.add(entity);
-        final SpawnEntityEvent event = SpongeEventFactory.createSpawnEntityEvent(InternalSpawnTypes.UNKNOWN_CAUSE,
+        final SpawnEntityEvent event = SpongeEventFactory.createSpawnEntityEvent(Sponge.getCauseStackManager().getCurrentCause(),
                 entities, (World) minecraftWorld);
         SpongeImpl.postEvent(event);
         if (!event.isCancelled() && event.getEntities().size() > 0) {

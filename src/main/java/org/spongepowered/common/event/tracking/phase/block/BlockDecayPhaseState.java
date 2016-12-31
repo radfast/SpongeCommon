@@ -25,29 +25,21 @@
 package org.spongepowered.common.event.tracking.phase.block;
 
 import net.minecraft.entity.item.EntityItem;
-import net.minecraft.util.math.BlockPos;
+import org.spongepowered.api.Sponge;
 import org.spongepowered.api.entity.Entity;
-import org.spongepowered.api.entity.living.player.User;
 import org.spongepowered.api.event.SpongeEventFactory;
-import org.spongepowered.api.event.cause.Cause;
-import org.spongepowered.api.event.cause.NamedCause;
-import org.spongepowered.api.event.cause.entity.spawn.LocatableBlockSpawnCause;
+import org.spongepowered.api.event.cause.EventContextKeys;
 import org.spongepowered.api.event.entity.SpawnEntityEvent;
 import org.spongepowered.api.event.item.inventory.DropItemEvent;
 import org.spongepowered.api.world.LocatableBlock;
-import org.spongepowered.api.world.Location;
-import org.spongepowered.api.world.World;
 import org.spongepowered.common.SpongeImpl;
 import org.spongepowered.common.event.tracking.CauseTracker;
 import org.spongepowered.common.event.tracking.PhaseContext;
 import org.spongepowered.common.event.tracking.TrackingUtil;
-import org.spongepowered.common.interfaces.IMixinChunk;
-import org.spongepowered.common.interfaces.world.IMixinLocation;
 import org.spongepowered.common.interfaces.world.IMixinWorldServer;
 import org.spongepowered.common.registry.type.event.InternalSpawnTypes;
 
 import java.util.List;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
 final class BlockDecayPhaseState extends BlockPhaseState {
@@ -60,33 +52,21 @@ final class BlockDecayPhaseState extends BlockPhaseState {
     void unwind(CauseTracker causeTracker, PhaseContext context) {
         final LocatableBlock locatable = context.getSource(LocatableBlock.class)
                 .orElseThrow(TrackingUtil.throwWithContext("Expected to be ticking over at a location!", context));
-        final Location<World> worldLocation = locatable.getLocation();
-        final BlockPos blockPos = ((IMixinLocation) (Object) worldLocation).getBlockPos();
         final IMixinWorldServer mixinWorld = causeTracker.getMixinWorld();
-        final IMixinChunk mixinChunk = (IMixinChunk) causeTracker.getMinecraftWorld().getChunkFromBlockCoords(blockPos);
-        final Optional<User> notifier = mixinChunk.getBlockNotifier(blockPos);
-        final Optional<User> creator = mixinChunk.getBlockOwner(blockPos);
 
         context.getCapturedItemsSupplier()
                 .ifPresentAndNotEmpty(items -> {
                     // Nothing happens here yet for some reason.
                 });
+        Object frame = Sponge.getCauseStackManager().pushCauseFrame();
+        Sponge.getCauseStackManager().pushCause(locatable);
+        Sponge.getCauseStackManager().addContext(EventContextKeys.SPAWN_TYPE, InternalSpawnTypes.BLOCK_SPAWNING);
+        context.addNotifierAndOwnerToCauseStack();
         context.getCapturedEntitySupplier()
                 .ifPresentAndNotEmpty(entities -> {
-                    final Cause.Builder builder = Cause.source(LocatableBlockSpawnCause.builder()
-                            .locatableBlock(locatable)
-                            .type(InternalSpawnTypes.BLOCK_SPAWNING)
-                            .build());
-                    context.getNotifier()
-                            .ifPresent(builder::notifier);
-                    context.getOwner()
-                            .ifPresent(builder::owner);
-
-                    final Cause cause = builder
-                            .build();
                     final SpawnEntityEvent
                             event =
-                            SpongeEventFactory.createSpawnEntityEvent(cause, entities, causeTracker.getWorld());
+                            SpongeEventFactory.createSpawnEntityEvent(Sponge.getCauseStackManager().getCurrentCause(), entities, causeTracker.getWorld());
                     SpongeImpl.postEvent(event);
                     if (!event.isCancelled()) {
                         for (Entity entity : event.getEntities()) {
@@ -101,18 +81,9 @@ final class BlockDecayPhaseState extends BlockPhaseState {
                     final List<EntityItem> items = drops.stream()
                             .map(drop -> drop.create(causeTracker.getMinecraftWorld()))
                             .collect(Collectors.toList());
-                    final Cause.Builder builder = Cause.source(
-                            LocatableBlockSpawnCause.builder()
-                                    .locatableBlock(locatable)
-                                    .type(InternalSpawnTypes.BLOCK_SPAWNING)
-                                    .build()
-                    );
-                    notifier.ifPresent(user -> builder.named(NamedCause.notifier(user)));
-                    creator.ifPresent(user -> builder.named(NamedCause.owner(user)));
-                    final Cause cause = builder.build();
                     final List<Entity> entities = (List<Entity>) (List<?>) items;
                     if (!entities.isEmpty()) {
-                        DropItemEvent.Custom event = SpongeEventFactory.createDropItemEventCustom(cause, entities, causeTracker.getWorld());
+                        DropItemEvent.Custom event = SpongeEventFactory.createDropItemEventCustom(Sponge.getCauseStackManager().getCurrentCause(), entities, causeTracker.getWorld());
                         SpongeImpl.postEvent(event);
                         if (!event.isCancelled()) {
                             for (Entity droppedItem : event.getEntities()) {
@@ -121,5 +92,6 @@ final class BlockDecayPhaseState extends BlockPhaseState {
                         }
                     }
                 });
+        Sponge.getCauseStackManager().popCauseFrame(frame);
     }
 }

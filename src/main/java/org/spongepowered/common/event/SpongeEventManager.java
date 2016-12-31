@@ -35,15 +35,18 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
 import com.google.common.reflect.TypeToken;
+import org.spongepowered.api.Sponge;
 import org.spongepowered.api.event.Cancellable;
 import org.spongepowered.api.event.Event;
 import org.spongepowered.api.event.EventListener;
 import org.spongepowered.api.event.EventManager;
 import org.spongepowered.api.event.Listener;
 import org.spongepowered.api.event.Order;
+import org.spongepowered.api.event.cause.Cause;
 import org.spongepowered.api.event.impl.AbstractEvent;
 import org.spongepowered.api.plugin.PluginContainer;
 import org.spongepowered.api.plugin.PluginManager;
+import org.spongepowered.common.SpongeCauseStackManager;
 import org.spongepowered.common.SpongeImpl;
 import org.spongepowered.common.event.filter.FilterFactory;
 import org.spongepowered.common.event.gen.DefineableClassLoader;
@@ -64,6 +67,18 @@ import javax.inject.Singleton;
 
 @Singleton
 public class SpongeEventManager implements EventManager {
+    
+    // TODO: remove before merge
+    private static final Set<Class<?>> VERBOSE_EVENTS = Sets.newHashSet();
+    
+    private static boolean isVerbose(Event event) {
+        for (Class<?> cls : VERBOSE_EVENTS) {
+            if (cls.isInstance(event)) {
+                return true;
+            }
+        }
+        return false;
+    }
 
     private final Object lock = new Object();
 
@@ -297,8 +312,21 @@ public class SpongeEventManager implements EventManager {
 
     @SuppressWarnings("unchecked")
     protected static boolean post(Event event, List<RegisteredListener<?>> handlers) {
+        // TODO temporary
+        if (isVerbose(event)) {
+            Cause stack_cause = SpongeCauseStackManager.instance.getCurrentCause();
+            if (event.getCause() != stack_cause) {
+                System.out.printf("Cause for %s in event was %s cause in stack was %s\n", event.getClass().getSimpleName(),
+                        event.getCause().toString(), stack_cause.toString());
+                Thread.dumpStack();
+            } else {
+                System.out.printf("Cause for %s in stack was %s\n", event.getClass().getSimpleName(), stack_cause.toString());
+            }
+        }
         TimingsManager.PLUGIN_EVENT_HANDLER.startTimingIfSync();
         for (@SuppressWarnings("rawtypes") RegisteredListener handler : handlers) {
+            Object frame = Sponge.getCauseStackManager().pushCauseFrame();
+            Sponge.getCauseStackManager().pushCause(handler.getPlugin());
             try {
                 handler.getTimingsHandler().startTimingIfSync();
                 ((AbstractEvent) event).currentOrder = handler.getOrder();
@@ -308,6 +336,7 @@ public class SpongeEventManager implements EventManager {
                 handler.getTimingsHandler().stopTimingIfSync();
                 SpongeImpl.getLogger().error("Could not pass {} to {}", event.getClass().getSimpleName(), handler.getPlugin(), e);
             }
+            Sponge.getCauseStackManager().popCauseFrame(frame);
         }
         TimingsManager.PLUGIN_EVENT_HANDLER.stopTimingIfSync();
         ((AbstractEvent) event).currentOrder = null;

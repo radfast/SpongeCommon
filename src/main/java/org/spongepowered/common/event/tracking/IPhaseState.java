@@ -24,7 +24,6 @@
  */
 package org.spongepowered.common.event.tracking;
 
-import net.minecraft.block.state.IBlockState;
 import net.minecraft.util.DamageSource;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.WorldServer;

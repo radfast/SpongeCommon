@@ -30,6 +30,7 @@ import net.minecraft.entity.EntityLiving;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.WorldServer;
+import org.spongepowered.api.Sponge;
 import org.spongepowered.api.data.DataContainer;
 import org.spongepowered.api.data.MemoryDataContainer;
 import org.spongepowered.api.entity.EntityArchetype;
@@ -72,7 +73,7 @@ public class SpongeEntityArchetype extends AbstractArchetype<EntityType, EntityS
 
     @SuppressWarnings("unchecked")
     @Override
-    public boolean apply(Location<World> location, Cause cause) {
+    public boolean apply(Location<World> location) {
         final Vector3d position = location.getPosition();
         final double x = position.getX();
         final double y = position.getY();
@@ -103,7 +104,7 @@ public class SpongeEntityArchetype extends AbstractArchetype<EntityType, EntityS
         this.data.removeTag("Dimension");
 
         final org.spongepowered.api.entity.Entity spongeEntity = EntityUtil.fromNative(entity);
-        final SpawnEntityEvent.Custom event = SpongeEventFactory.createSpawnEntityEventCustom(cause, Arrays.asList(spongeEntity), world);
+        final SpawnEntityEvent.Custom event = SpongeEventFactory.createSpawnEntityEventCustom(Sponge.getCauseStackManager().getCurrentCause(), Arrays.asList(spongeEntity), world);
         if (!event.isCancelled()) {
             final IMixinWorldServer mixinWorldServer = (IMixinWorldServer) worldServer;
             entity.setPositionAndRotation(x, y, z, entity.rotationYaw, entity.rotationPitch);

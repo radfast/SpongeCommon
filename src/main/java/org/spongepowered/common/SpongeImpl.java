@@ -92,7 +92,6 @@ public final class SpongeImpl {
 
     private final Injector injector;
     private final Game game;
-    private final Cause implementationCause;
 
     private final List<PluginContainer> internalPlugins = new ArrayList<>();
 
@@ -111,10 +110,8 @@ public final class SpongeImpl {
         }
 
         for (Platform.Component component : Platform.Component.values()) {
-            internalPlugins.add(platform.getContainer(component));
+            this.internalPlugins.add(platform.getContainer(component));
         }
-
-        this.implementationCause = Cause.source(platform.getContainer(IMPLEMENTATION)).build();
     }
 
     public static SpongeImpl getInstance() {
@@ -204,10 +201,6 @@ public final class SpongeImpl {
     public static void postShutdownEvents() {
         postState(GameState.GAME_STOPPING, SpongeEventFactory.createGameStoppingEvent(Cause.source(getGame()).build()));
         postState(GameState.GAME_STOPPED, SpongeEventFactory.createGameStoppedEvent(Cause.source(getGame()).build()));
-    }
-
-    public static Cause getImplementationCause() {
-        return getInstance().implementationCause;
     }
 
 }

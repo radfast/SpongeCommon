@@ -46,6 +46,7 @@ import net.minecraft.world.WorldProvider;
 import net.minecraft.world.WorldServer;
 import net.minecraft.world.chunk.Chunk;
 import org.apache.logging.log4j.Level;
+import org.spongepowered.api.Sponge;
 import org.spongepowered.api.block.BlockSnapshot;
 import org.spongepowered.api.block.BlockState;
 import org.spongepowered.api.block.tileentity.TileEntity;
@@ -55,9 +56,7 @@ import org.spongepowered.api.entity.living.player.User;
 import org.spongepowered.api.event.SpongeEventFactory;
 import org.spongepowered.api.event.block.ChangeBlockEvent;
 import org.spongepowered.api.event.block.TickBlockEvent;
-import org.spongepowered.api.event.cause.Cause;
-import org.spongepowered.api.event.cause.NamedCause;
-import org.spongepowered.api.event.cause.entity.spawn.BlockSpawnCause;
+import org.spongepowered.api.event.cause.EventContextKeys;
 import org.spongepowered.api.event.item.inventory.DropItemEvent;
 import org.spongepowered.api.item.inventory.ItemStackSnapshot;
 import org.spongepowered.api.world.BlockChangeFlag;
@@ -68,7 +67,6 @@ import org.spongepowered.asm.util.PrettyPrinter;
 import org.spongepowered.common.SpongeImpl;
 import org.spongepowered.common.block.SpongeBlockSnapshot;
 import org.spongepowered.common.entity.EntityUtil;
-import org.spongepowered.common.event.InternalNamedCauses;
 import org.spongepowered.common.event.ShouldFire;
 import org.spongepowered.common.event.tracking.phase.block.BlockPhase;
 import org.spongepowered.common.event.tracking.phase.general.GeneralPhase;
@@ -136,9 +134,10 @@ public final class TrackingUtil {
             // Don't tick entities in chunks queued for unload
             return;
         }
-
+        Object frame = Sponge.getCauseStackManager().pushCauseFrame();
+        Sponge.getCauseStackManager().pushCause(entityIn);
         final PhaseContext phaseContext = PhaseContext.start()
-                .add(NamedCause.source(entityIn))
+                .source(entityIn)
                 .addEntityCaptures()
                 .addBlockCaptures();
         final IMixinEntity mixinEntity = EntityUtil.toMixin(entityIn);
@@ -153,11 +152,10 @@ public final class TrackingUtil {
         entityTiming.startTiming();
         try {
             entityIn.onUpdate();
-        } catch (Exception e) {
-            throw e;
         } finally {
             entityTiming.stopTiming();
             causeTracker.completePhase(TickPhase.Tick.ENTITY);
+            Sponge.getCauseStackManager().popCauseFrame(frame);
         }
     }
 
@@ -169,8 +167,10 @@ public final class TrackingUtil {
             // Don't tick entity in chunks queued for unload
             return;
         }
+        Object frame = Sponge.getCauseStackManager().pushCauseFrame();
+        Sponge.getCauseStackManager().pushCause(entity);
         final PhaseContext phaseContext = PhaseContext.start()
-                .add(NamedCause.source(entity))
+                .source(entity)
                 .addEntityCaptures()
                 .addBlockCaptures();
         final IMixinEntity mixinEntity = EntityUtil.toMixin(entity);
@@ -185,6 +185,7 @@ public final class TrackingUtil {
         entity.updateRidden();
         entityTiming.stopTiming();
         causeTracker.completePhase(TickPhase.Tick.ENTITY);
+        Sponge.getCauseStackManager().popCauseFrame(frame);
     }
 
     public static void tickTileEntity(CauseTracker causeTracker, ITickable tile) {
@@ -198,8 +199,10 @@ public final class TrackingUtil {
             // Don't tick TE's in chunks queued for unload
             return;
         }
+        Object frame = Sponge.getCauseStackManager().pushCauseFrame();
+        Sponge.getCauseStackManager().pushCause(tile);
         final PhaseContext phaseContext = PhaseContext.start()
-                .add(NamedCause.source(tile))
+                .source(tile)
                 .addEntityCaptures()
                 .addBlockCaptures();
 
@@ -218,20 +221,21 @@ public final class TrackingUtil {
         mixinTileEntity.getTimingsHandler().startTiming();
         try {
             tile.update();
-        } catch (Exception e) {
-            throw e;
         } finally {
             mixinTileEntity.getTimingsHandler().stopTiming();
             causeTracker.completePhase(TickPhase.Tick.TILE_ENTITY);
+            Sponge.getCauseStackManager().popCauseFrame(frame);
         }
     }
 
     public static void updateTickBlock(CauseTracker causeTracker, Block block, BlockPos pos, IBlockState state, Random random) {
         final IMixinWorldServer mixinWorld = causeTracker.getMixinWorld();
         final WorldServer minecraftWorld = causeTracker.getMinecraftWorld();
+        Object frame = Sponge.getCauseStackManager().pushCauseFrame();
+        Sponge.getCauseStackManager().pushCause(minecraftWorld);
         if (ShouldFire.TICK_BLOCK_EVENT) {
             BlockSnapshot snapshot = mixinWorld.createSpongeBlockSnapshot(state, state, pos, 0);
-            final TickBlockEvent event = SpongeEventFactory.createTickBlockEventScheduled(Cause.of(NamedCause.source(minecraftWorld)), snapshot);
+            final TickBlockEvent event = SpongeEventFactory.createTickBlockEventScheduled(Sponge.getCauseStackManager().getCurrentCause(), snapshot);
             SpongeImpl.postEvent(event);
             if(event.isCancelled()) {
                 return;
@@ -242,8 +246,9 @@ public final class TrackingUtil {
                 .location(new Location<World>((World) minecraftWorld, pos.getX(), pos.getY(), pos.getZ()))
                 .state((BlockState) state)
                 .build();
+        Sponge.getCauseStackManager().pushCause(locatable);
         final PhaseContext phaseContext = PhaseContext.start()
-                .add(NamedCause.source(locatable))
+                .source(locatable)
                 .addBlockCaptures()
                 .addEntityCaptures();
 
@@ -259,14 +264,17 @@ public final class TrackingUtil {
         causeTracker.switchToPhase(phase, phaseContext.complete());
         block.updateTick(minecraftWorld, pos, state, random);
         causeTracker.completePhase(phase);
+        Sponge.getCauseStackManager().popCauseFrame(frame);
     }
 
     public static void randomTickBlock(CauseTracker causeTracker, Block block, BlockPos pos, IBlockState state, Random random) {
         final IMixinWorldServer mixinWorld = causeTracker.getMixinWorld();
         final WorldServer minecraftWorld = causeTracker.getMinecraftWorld();
+        Object frame = Sponge.getCauseStackManager().pushCauseFrame();
+        Sponge.getCauseStackManager().pushCause(minecraftWorld);
         if (ShouldFire.TICK_BLOCK_EVENT) {
             final BlockSnapshot currentTickBlock = mixinWorld.createSpongeBlockSnapshot(state, state, pos, 0);
-            final TickBlockEvent event = SpongeEventFactory.createTickBlockEventRandom(Cause.of(NamedCause.source(minecraftWorld)), currentTickBlock);
+            final TickBlockEvent event = SpongeEventFactory.createTickBlockEventRandom(Sponge.getCauseStackManager().getCurrentCause(), currentTickBlock);
             SpongeImpl.postEvent(event);
             if(event.isCancelled()) {
                 return;
@@ -277,8 +285,9 @@ public final class TrackingUtil {
                 .location(new Location<World>((World) minecraftWorld, pos.getX(), pos.getY(), pos.getZ()))
                 .state((BlockState) state)
                 .build();
+        Sponge.getCauseStackManager().pushCause(locatable);
         final PhaseContext phaseContext = PhaseContext.start()
-                .add(NamedCause.source(locatable))
+                .source(locatable)
                 .addEntityCaptures()
                 .addBlockCaptures();
 
@@ -293,6 +302,7 @@ public final class TrackingUtil {
         causeTracker.switchToPhase(phase, phaseContext.complete());
         block.randomTick(minecraftWorld, pos, state, random);
         causeTracker.completePhase(phase);
+        Sponge.getCauseStackManager().popCauseFrame(frame);
     }
 
     private static void checkAndAssignBlockTickConfig(Block block, WorldServer minecraftWorld, PhaseContext phaseContext) {
@@ -302,9 +312,10 @@ public final class TrackingUtil {
                 capturingBlock.initializeBlockCapturingState(minecraftWorld);
                 capturingBlock.requiresBlockCapturingRefresh(false);
             }
-            phaseContext.add(NamedCause.of(InternalNamedCauses.Tracker.PROCESS_IMMEDIATELY, ((IModData_BlockCapturing) block).processTickChangesImmediately()));
+            // TODO ????
+            //phaseContext.add(NamedCause.of(InternalNamedCauses.Tracker.PROCESS_IMMEDIATELY, ((IModData_BlockCapturing) block).processTickChangesImmediately()));
         } else {
-            phaseContext.add(NamedCause.of(InternalNamedCauses.Tracker.PROCESS_IMMEDIATELY, false));
+            //phaseContext.add(NamedCause.of(InternalNamedCauses.Tracker.PROCESS_IMMEDIATELY, false));
         }
     }
 
@@ -312,7 +323,7 @@ public final class TrackingUtil {
         final CauseTracker causeTracker = worldServer.getCauseTracker();
         final WorldProvider worldProvider = ((WorldServer) worldServer).provider;
         causeTracker.switchToPhase(TickPhase.Tick.DIMENSION, PhaseContext.start()
-                .add(NamedCause.source(worldProvider))
+                .source(worldProvider)
                 .addBlockCaptures()
                 .addEntityCaptures()
                 .addEntityDropCaptures()
@@ -330,7 +341,7 @@ public final class TrackingUtil {
 
         Object source = blockEvent.getTickBlock() != null ? blockEvent.getTickBlock() : blockEvent.getTickTileEntity();
         if (source != null) {
-            phaseContext.add(NamedCause.source(source));
+            phaseContext.source(source);
         } else {
             // No source present which means we are ignoring the phase state
             boolean result = currentState.onBlockEventReceived(worldIn, event.getPosition(), event.getEventID(), event.getEventParameter());
@@ -338,7 +349,7 @@ public final class TrackingUtil {
         }
 
         if (blockEvent.getSourceUser() != null) {
-            phaseContext.add(NamedCause.notifier(blockEvent.getSourceUser()));
+            phaseContext.notifier(blockEvent.getSourceUser());
         }
 
         IPhaseState phase = blockEvent.getCaptureBlocks() ? TickPhase.Tick.BLOCK_EVENT : TickPhase.Tick.NO_CAPTURE_BLOCK;
@@ -353,13 +364,15 @@ public final class TrackingUtil {
         final IPhaseState currentState = causeTracker.getCurrentState();
         final boolean shouldEnterBlockDropPhase = !currentState.getPhase().alreadyCapturingItemSpawns(currentState);
         if (shouldEnterBlockDropPhase) {
+            BlockSnapshot snapshot = mixinWorld.createSpongeBlockSnapshot(state, state, pos, 4);
             PhaseContext context = PhaseContext.start()
-                    .add(NamedCause.source(mixinWorld.createSpongeBlockSnapshot(state, state, pos, 4)))
+                    .source(snapshot)
                     .addBlockCaptures()
                     .addEntityCaptures();
-                    // unused, to be removed and re-located when phase context is cleaned up
-                    //.add(NamedCause.of(InternalNamedCauses.General.BLOCK_BREAK_FORTUNE, fortune))
-                    //.add(NamedCause.of(InternalNamedCauses.General.BLOCK_BREAK_POSITION, pos));
+            Sponge.getCauseStackManager().pushCause(snapshot);
+            // unused, to be removed and re-located when phase context is cleaned up
+//            Sponge.getCauseStackManager().addContext(InternalNamedCauses.General.BLOCK_BREAK_FORTUNE, fortune);
+//            Sponge.getCauseStackManager().addContext(InternalNamedCauses.General.BLOCK_BREAK_POSITION, pos);
             // use current notifier and owner if available
             context.notifier = causeTracker.getCurrentContext().notifier;
             context.owner = causeTracker.getCurrentContext().owner;
@@ -451,7 +464,7 @@ public final class TrackingUtil {
     }
 
     public static User getNotifierOrOwnerFromBlock(net.minecraft.world.WorldServer world, BlockPos blockPos) {
-        final IMixinChunk mixinChunk = (IMixinChunk) ((WorldServer) world).getChunkFromBlockCoords(blockPos);
+        final IMixinChunk mixinChunk = (IMixinChunk) world.getChunkFromBlockCoords(blockPos);
         User notifier = mixinChunk.getBlockNotifier(blockPos).orElse(null);
         if (notifier != null) {
             return notifier;
@@ -489,7 +502,7 @@ public final class TrackingUtil {
      * @param context The phase context, only used by the phase for handling processes.
      * @return True if no events or transactions were cancelled
      */
-    @SuppressWarnings({"unchecked", "rawtypes"})
+    @SuppressWarnings({"unchecked"})
     public static boolean processBlockCaptures(List<BlockSnapshot> snapshots, CauseTracker causeTracker, IPhaseState state, PhaseContext context) {
         if (snapshots.isEmpty()) {
             return false;
@@ -515,24 +528,27 @@ public final class TrackingUtil {
         final ChangeBlockEvent[] mainEvents = new ChangeBlockEvent[BlockChange.values().length];
         // This likely needs to delegate to the phase in the event we don't use the source object as the main object causing the block changes
         // case in point for WorldTick event listeners since the players are captured non-deterministically
-        final Cause.Builder builder = Cause.source(context.getSource(Object.class)
-                .orElseThrow(throwWithContext("There was no root source object for this phase!", context))
-        );
-        context.getNotifier().ifPresent(builder::notifier);
-        context.getOwner().ifPresent(builder::owner);
+        Object frame = Sponge.getCauseStackManager().pushCauseFrame();
+        if(context.getNotifier().isPresent()) {
+            Sponge.getCauseStackManager().addContext(EventContextKeys.NOTIFIER, context.getNotifier().get());
+        }
+        if(context.getOwner().isPresent()) {
+            Sponge.getCauseStackManager().addContext(EventContextKeys.OWNER, context.getOwner().get());
+        }
         try {
-            state.getPhase().associateAdditionalCauses(state, context, builder, causeTracker);
+            state.getPhase().associateAdditionalCauses(state, context, causeTracker);
         } catch (Exception e) {
             // TODO - this should be a thing to associate additional objects in the cause, or context, but for now it's just a simple
             // try catch to avoid bombing on performing block changes.
         }
         final org.spongepowered.api.world.World world = causeTracker.getWorld();
         // Creates the block events accordingly to the transaction arrays
-        iterateChangeBlockEvents(transactionArrays, blockEvents, mainEvents, builder, world); // Needs to throw events
+        iterateChangeBlockEvents(transactionArrays, blockEvents, mainEvents, world); // Needs to throw events
         // We create the post event and of course post it in the method, regardless whether any transactions are invalidated or not
-        final ChangeBlockEvent.Post postEvent = throwMultiEventsAndCreatePost(transactionArrays, blockEvents, mainEvents, builder, world);
+        final ChangeBlockEvent.Post postEvent = throwMultiEventsAndCreatePost(transactionArrays, blockEvents, mainEvents, world);
 
         if (postEvent == null) { // Means that we have had no actual block changes apparently?
+            Sponge.getCauseStackManager().popCauseFrame(frame);
             return false;
         }
 
@@ -608,17 +624,18 @@ public final class TrackingUtil {
                 }
             }
         }
-        return performBlockAdditions(causeTracker, postEvent.getTransactions(), builder, state, context, noCancelledTransactions);
+        Sponge.getCauseStackManager().popCauseFrame(frame);
+        return performBlockAdditions(causeTracker, postEvent.getTransactions(), state, context, noCancelledTransactions);
     }
 
     public static void iterateChangeBlockEvents(ImmutableList<Transaction<BlockSnapshot>>[] transactionArrays, List<ChangeBlockEvent> blockEvents,
-            ChangeBlockEvent[] mainEvents, Cause.Builder builder, org.spongepowered.api.world.World world) {
+            ChangeBlockEvent[] mainEvents, org.spongepowered.api.world.World world) {
         for (BlockChange blockChange : BlockChange.values()) {
             if (blockChange == BlockChange.DECAY) { // Decay takes place after.
                 continue;
             }
             if (!transactionArrays[blockChange.ordinal()].isEmpty()) {
-                final ChangeBlockEvent event = blockChange.createEvent(builder.build(), world, transactionArrays[blockChange.ordinal()]);
+                final ChangeBlockEvent event = blockChange.createEvent(Sponge.getCauseStackManager().getCurrentCause(), world, transactionArrays[blockChange.ordinal()]);
                 mainEvents[blockChange.ordinal()] = event;
                 if (event != null) {
                     SpongeImpl.postEvent(event);
@@ -627,7 +644,7 @@ public final class TrackingUtil {
             }
         }
         if (!transactionArrays[BlockChange.DECAY.ordinal()].isEmpty()) { // Needs to be placed into iterateChangeBlockEvents
-            final ChangeBlockEvent event = BlockChange.DECAY.createEvent(builder.build(), world, transactionArrays[BlockChange.DECAY.ordinal()]);
+            final ChangeBlockEvent event = BlockChange.DECAY.createEvent(Sponge.getCauseStackManager().getCurrentCause(), world, transactionArrays[BlockChange.DECAY.ordinal()]);
             mainEvents[BlockChange.DECAY.ordinal()] = event;
             if (event != null) {
                 SpongeImpl.postEvent(event);
@@ -636,7 +653,7 @@ public final class TrackingUtil {
         }
     }
 
-    public static boolean performBlockAdditions(CauseTracker causeTracker, List<Transaction<BlockSnapshot>> transactions, Cause.Builder builder, IPhaseState phaseState, PhaseContext phaseContext, boolean noCancelledTransactions) {
+    public static boolean performBlockAdditions(CauseTracker causeTracker, List<Transaction<BlockSnapshot>> transactions, IPhaseState phaseState, PhaseContext phaseContext, boolean noCancelledTransactions) {
         // We have to use a proxy so that our pending changes are notified such that any accessors from block
         // classes do not fail on getting the incorrect block state from the IBlockAccess
         final WorldServer minecraftWorld = causeTracker.getMinecraftWorld();
@@ -666,7 +683,7 @@ public final class TrackingUtil {
             // And this is for un-pre-merged items, these will be EntityItems, not ItemDropDatas.
             capturedBlockItemEntityDrops.ifPresentAndNotEmpty(map -> spawnItemEntitiesForBlockDrops(map.containsKey(pos) ? map.removeAll(pos) : Collections.emptyList(), newBlockSnapshot, causeTracker, phaseContext, phaseState));
 
-            SpongeHooks.logBlockAction(builder, minecraftWorld, oldBlockSnapshot.blockChange, transaction);
+            SpongeHooks.logBlockAction(minecraftWorld, oldBlockSnapshot.blockChange, transaction);
             final BlockChangeFlag changeFlag = oldBlockSnapshot.getChangeFlag();
             final IBlockState originalState = (IBlockState) oldBlockSnapshot.getState();
             final IBlockState newState = (IBlockState) newBlockSnapshot.getState();
@@ -709,19 +726,20 @@ public final class TrackingUtil {
         final List<Entity> itemDrops = entityItems.stream()
                 .map(EntityUtil::fromNative)
                 .collect(Collectors.toList());
-        final Cause.Builder builder = Cause.source(BlockSpawnCause.builder()
-                .block(newBlockSnapshot)
-                .type(InternalSpawnTypes.DROPPED_ITEM)
-                .build());
+        Object frame = Sponge.getCauseStackManager().pushCauseFrame();
+        Sponge.getCauseStackManager().pushCause(newBlockSnapshot);
+        Sponge.getCauseStackManager().addContext(EventContextKeys.SPAWN_TYPE, InternalSpawnTypes.DROPPED_ITEM);
         final Optional<User> owner = phaseContext.getOwner();
         final Optional<User> notifier = phaseContext.getNotifier();
-        notifier.ifPresent(builder::notifier);
+        if(notifier.isPresent()) {
+            Sponge.getCauseStackManager().addContext(EventContextKeys.NOTIFIER, notifier.get());
+        }
         final User entityCreator = notifier.orElseGet(() -> owner.orElse(null));
-        final Cause spawnCauses = builder.build();
         final DropItemEvent.Destruct
                 destruct =
-                SpongeEventFactory.createDropItemEventDestruct(spawnCauses, itemDrops, causeTracker.getWorld());
+                SpongeEventFactory.createDropItemEventDestruct(Sponge.getCauseStackManager().getCurrentCause(), itemDrops, causeTracker.getWorld());
         SpongeImpl.postEvent(destruct);
+        Sponge.getCauseStackManager().popCauseFrame(frame);
         if (!destruct.isCancelled()) {
             for (Entity entity : destruct.getEntities()) {
                 if (entityCreator != null) {
@@ -740,8 +758,9 @@ public final class TrackingUtil {
                 .map(ItemStackUtil::createSnapshot)
                 .collect(Collectors.toList());
         final ImmutableList<ItemStackSnapshot> originalSnapshots = ImmutableList.copyOf(itemSnapshots);
-        final Cause cause = Cause.source(oldBlockSnapshot).build();
-        final DropItemEvent.Pre dropItemEventPre = SpongeEventFactory.createDropItemEventPre(cause, originalSnapshots, itemSnapshots);
+        Sponge.getCauseStackManager().pushCause(oldBlockSnapshot);
+        final DropItemEvent.Pre dropItemEventPre = SpongeEventFactory.createDropItemEventPre(Sponge.getCauseStackManager().getCurrentCause(), originalSnapshots, itemSnapshots);
+        Sponge.getCauseStackManager().popCause();
         SpongeImpl.postEvent(dropItemEventPre);
         if (dropItemEventPre.isCancelled()) {
             itemStacks.clear();
@@ -753,30 +772,30 @@ public final class TrackingUtil {
         final List<Entity> itemDrops = itemStacks.stream().map(itemStack -> {
                     final net.minecraft.item.ItemStack minecraftStack = itemStack.getStack();
                     final WorldServer minecraftWorld = causeTracker.getMinecraftWorld();
-                    float f = 0.5F;
-                    double offsetX = (double) (minecraftWorld.rand.nextFloat() * f) + (double) (1.0F - f) * 0.5D;
-                    double offsetY = (double) (minecraftWorld.rand.nextFloat() * f) + (double) (1.0F - f) * 0.5D;
-                    double offsetZ = (double) (minecraftWorld.rand.nextFloat() * f) + (double) (1.0F - f) * 0.5D;
-                    final double x = (double) position.getX() + offsetX;
-                    final double y = (double) position.getY() + offsetY;
-                    final double z = (double) position.getZ() + offsetZ;
+                    double offsetX = minecraftWorld.rand.nextFloat() * 0.5 + 0.25;
+                    double offsetY = minecraftWorld.rand.nextFloat() * 0.5 + 0.25;
+                    double offsetZ = minecraftWorld.rand.nextFloat() * 0.5 + 0.25;
+                    final double x = position.getX() + offsetX;
+                    final double y = position.getY() + offsetY;
+                    final double z = position.getZ() + offsetZ;
                     EntityItem entityitem = new EntityItem(minecraftWorld, x, y, z, minecraftStack);
                     entityitem.setDefaultPickupDelay();
                     return entityitem;
                 })
                 .map(EntityUtil::fromNative)
                 .collect(Collectors.toList());
-        final Cause.Builder builder = Cause.source(BlockSpawnCause.builder()
-                .block(oldBlockSnapshot)
-                .type(InternalSpawnTypes.DROPPED_ITEM)
-                .build());
-        phaseContext.getNotifier().ifPresent(builder::notifier);
+        Object frame = Sponge.getCauseStackManager().pushCauseFrame();
+        Sponge.getCauseStackManager().pushCause(oldBlockSnapshot);
+        Sponge.getCauseStackManager().addContext(EventContextKeys.SPAWN_TYPE, InternalSpawnTypes.DROPPED_ITEM);
+        if(phaseContext.getNotifier().isPresent()) {
+            Sponge.getCauseStackManager().addContext(EventContextKeys.NOTIFIER, phaseContext.getNotifier().get());
+        }
         final User entityCreator = phaseContext.getNotifier().orElseGet(() -> phaseContext.getOwner().orElse(null));
-        final Cause spawnCauses = builder.build();
         final DropItemEvent.Destruct
                 destruct =
-                SpongeEventFactory.createDropItemEventDestruct(spawnCauses, itemDrops, causeTracker.getWorld());
+                SpongeEventFactory.createDropItemEventDestruct(Sponge.getCauseStackManager().getCurrentCause(), itemDrops, causeTracker.getWorld());
         SpongeImpl.postEvent(destruct);
+        Sponge.getCauseStackManager().popCauseFrame(frame);
         if (!destruct.isCancelled()) {
             for (Entity entity : destruct.getEntities()) {
                 if (entityCreator != null) {
@@ -788,16 +807,18 @@ public final class TrackingUtil {
     }
 
     public static ChangeBlockEvent.Post throwMultiEventsAndCreatePost(ImmutableList<Transaction<BlockSnapshot>>[] transactionArrays, List<ChangeBlockEvent> blockEvents,
-            ChangeBlockEvent[] mainEvents, Cause.Builder builder, org.spongepowered.api.world.World world) {
+            ChangeBlockEvent[] mainEvents, org.spongepowered.api.world.World world) {
         if (!blockEvents.isEmpty()) {
+            Object frame = Sponge.getCauseStackManager().pushCauseFrame();
             for (BlockChange blockChange : BlockChange.values()) {
                 final ChangeBlockEvent mainEvent = mainEvents[blockChange.ordinal()];
                 if (mainEvent != null) {
-                    blockChange.suggestNamed(builder, mainEvent);
+                    Sponge.getCauseStackManager().pushCause(mainEvent);
                 }
             }
             final ImmutableList<Transaction<BlockSnapshot>> transactions = transactionArrays[MULTI_CHANGE_INDEX];
-            final ChangeBlockEvent.Post post = SpongeEventFactory.createChangeBlockEventPost(builder.build(), world, transactions);
+            final ChangeBlockEvent.Post post = SpongeEventFactory.createChangeBlockEventPost(Sponge.getCauseStackManager().getCurrentCause(), world, transactions);
+            Sponge.getCauseStackManager().popCauseFrame(frame);
             SpongeImpl.postEvent(post);
             return post;
         }

@@ -30,20 +30,18 @@ import net.minecraft.entity.item.EntityItem;
 import net.minecraft.entity.item.EntityXPOrb;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.WorldServer;
+import org.spongepowered.api.Sponge;
 import org.spongepowered.api.block.BlockSnapshot;
 import org.spongepowered.api.entity.Entity;
 import org.spongepowered.api.entity.living.player.User;
 import org.spongepowered.api.event.SpongeEventFactory;
-import org.spongepowered.api.event.cause.Cause;
-import org.spongepowered.api.event.cause.NamedCause;
-import org.spongepowered.api.event.cause.entity.spawn.LocatableBlockSpawnCause;
+import org.spongepowered.api.event.cause.EventContextKeys;
 import org.spongepowered.api.event.entity.SpawnEntityEvent;
 import org.spongepowered.api.world.LocatableBlock;
 import org.spongepowered.api.world.Location;
 import org.spongepowered.api.world.World;
 import org.spongepowered.common.SpongeImpl;
 import org.spongepowered.common.entity.EntityUtil;
-import org.spongepowered.common.event.InternalNamedCauses;
 import org.spongepowered.common.event.tracking.CauseTracker;
 import org.spongepowered.common.event.tracking.PhaseContext;
 import org.spongepowered.common.event.tracking.TrackingUtil;
@@ -77,27 +75,23 @@ class BlockTickPhaseState extends LocationBasedTickPhaseState {
     }
 
     @Override
-    public void processPostTick(CauseTracker causeTracker, PhaseContext context) {
-        final LocatableBlock locatableBlock = getLocatableBlockSourceFromContext(context);
-        final Optional<User> owner = context.getOwner();
-        final Optional<User> notifier = context.getNotifier();
-        final User entityCreator = notifier.orElseGet(() -> owner.orElse(null));
-        context.getCapturedBlockSupplier()
-                .ifPresentAndNotEmpty(blockSnapshots -> TrackingUtil.processBlockCaptures(blockSnapshots, causeTracker, this, context));
-        context.getCapturedItemsSupplier()
+    public void processPostTick(CauseTracker causeTracker, PhaseContext phaseContext) {
+    final LocatableBlock locatableBlock = getLocatableBlockSourceFromContext(phaseContext);
+        Object frame = Sponge.getCauseStackManager().pushCauseFrame();
+        Sponge.getCauseStackManager().pushCause(locatableBlock);
+        Sponge.getCauseStackManager().addContext(EventContextKeys.SPAWN_TYPE, InternalSpawnTypes.DROPPED_ITEM);
+        final User entityCreator = phaseContext.getNotifier().orElseGet(() -> phaseContext.getOwner().orElse(null));
+        phaseContext.getCapturedBlockSupplier()
+                .ifPresentAndNotEmpty(blockSnapshots -> TrackingUtil.processBlockCaptures(blockSnapshots, causeTracker, this, phaseContext));
+        phaseContext.getCapturedItemsSupplier()
                 .ifPresentAndNotEmpty(items -> {
-                    final Cause cause = Cause.source(LocatableBlockSpawnCause.builder()
-                            .locatableBlock(locatableBlock)
-                            .type(InternalSpawnTypes.DROPPED_ITEM)
-                            .build())
-                            .build();
                     final ArrayList<Entity> capturedEntities = new ArrayList<>();
                     for (EntityItem entity : items) {
                         capturedEntities.add(EntityUtil.fromNative(entity));
                     }
                     final SpawnEntityEvent
                             spawnEntityEvent =
-                            SpongeEventFactory.createSpawnEntityEvent(cause, capturedEntities, causeTracker.getWorld());
+                            SpongeEventFactory.createSpawnEntityEvent(Sponge.getCauseStackManager().getCurrentCause(), capturedEntities, causeTracker.getWorld());
                     SpongeImpl.postEvent(spawnEntityEvent);
                     for (Entity entity : spawnEntityEvent.getEntities()) {
                         if (entityCreator != null) {
@@ -106,11 +100,7 @@ class BlockTickPhaseState extends LocationBasedTickPhaseState {
                         causeTracker.getMixinWorld().forceSpawnEntity(entity);
                     }
                 });
-    }
-
-    @Override
-    public void associateAdditionalBlockChangeCauses(PhaseContext context, Cause.Builder builder, CauseTracker causeTracker) {
-        builder.named(NamedCause.notifier(getLocatableBlockSourceFromContext(context)));
+        Sponge.getCauseStackManager().popCauseFrame(frame);
     }
 
     @Override
@@ -123,7 +113,7 @@ class BlockTickPhaseState extends LocationBasedTickPhaseState {
         final BlockPos blockPos = VecHelper.toBlockPos(blockPosition);
         final IMixinChunk mixinChunk = (IMixinChunk) worldServer.getChunkFromBlockCoords(blockPos);
         mixinChunk.getBlockNotifier(blockPos).ifPresent(blockEvent::setSourceUser);
-        context.firstNamed(NamedCause.NOTIFIER, User.class).ifPresent(blockEvent::setSourceUser);
+        context.getNotifier().ifPresent(blockEvent::setSourceUser);
     }
 
     @Override
@@ -131,7 +121,7 @@ class BlockTickPhaseState extends LocationBasedTickPhaseState {
         context.getOwner().ifPresent(explosionContext::owner);
         context.getNotifier().ifPresent(explosionContext::notifier);
         final LocatableBlock locatableBlock = getLocatableBlockSourceFromContext(context);
-        explosionContext.add(NamedCause.source(locatableBlock));
+        explosionContext.source(locatableBlock);
     }
 
     @Override
@@ -140,18 +130,21 @@ class BlockTickPhaseState extends LocationBasedTickPhaseState {
         final Optional<User> owner = context.getOwner();
         final Optional<User> notifier = context.getNotifier();
         final User entityCreator = notifier.orElseGet(() -> owner.orElse(null));
+        Object frame = Sponge.getCauseStackManager().pushCauseFrame();
+        Sponge.getCauseStackManager().pushCause(locatableBlock);
+        Sponge.getCauseStackManager().addContext(EventContextKeys.SPAWN_TYPE, InternalSpawnTypes.EXPERIENCE);
+        if(notifier.isPresent()) {
+            Sponge.getCauseStackManager().addContext(EventContextKeys.NOTIFIER, notifier.get());
+        }
+        if(owner.isPresent()) {
+            Sponge.getCauseStackManager().addContext(EventContextKeys.OWNER, owner.get());
+        }
         if (entity instanceof EntityXPOrb) {
             final ArrayList<Entity> entities = new ArrayList<>(1);
             entities.add(entity);
-            final Cause.Builder builder = Cause.builder();
-            builder.named(NamedCause.source(LocatableBlockSpawnCause.builder()
-                    .locatableBlock(locatableBlock)
-                    .type(InternalSpawnTypes.EXPERIENCE)
-                    .build()));
-            notifier.ifPresent(builder::notifier);
-            owner.ifPresent(builder::owner);
-            final SpawnEntityEvent event = SpongeEventFactory.createSpawnEntityEvent(builder.build(), entities, causeTracker.getWorld());
+            final SpawnEntityEvent event = SpongeEventFactory.createSpawnEntityEvent(Sponge.getCauseStackManager().getCurrentCause(), entities, causeTracker.getWorld());
             SpongeImpl.postEvent(event);
+            Sponge.getCauseStackManager().popCauseFrame(frame);
             if (!event.isCancelled()) {
                 for (Entity anEntity : event.getEntities()) {
                     if (entityCreator != null) {
@@ -165,18 +158,12 @@ class BlockTickPhaseState extends LocationBasedTickPhaseState {
         }
         final List<Entity> nonExpEntities = new ArrayList<>(1);
         nonExpEntities.add(entity);
-        final Cause.Builder builder = Cause.source(LocatableBlockSpawnCause.builder()
-                .locatableBlock(locatableBlock)
-                .type(InternalSpawnTypes.BLOCK_SPAWNING)
-                .build());
-        notifier.ifPresent(builder::notifier);
-        owner.ifPresent(builder::owner);
-        final Cause cause = builder.build();
+        Sponge.getCauseStackManager().addContext(EventContextKeys.SPAWN_TYPE, InternalSpawnTypes.BLOCK_SPAWNING);
         final SpawnEntityEvent
                 spawnEntityEvent =
-                SpongeEventFactory.createSpawnEntityEvent(cause, nonExpEntities, causeTracker.getWorld());
+                SpongeEventFactory.createSpawnEntityEvent(Sponge.getCauseStackManager().getCurrentCause(), nonExpEntities, causeTracker.getWorld());
         SpongeImpl.postEvent(spawnEntityEvent);
-
+        Sponge.getCauseStackManager().popCauseFrame(frame);
         if (!spawnEntityEvent.isCancelled()) {
             for (Entity anEntity : spawnEntityEvent.getEntities()) {
                 if (entityCreator != null) {
@@ -191,8 +178,7 @@ class BlockTickPhaseState extends LocationBasedTickPhaseState {
 
     @Override
     public void postTrackBlock(BlockSnapshot snapshot, CauseTracker tracker, PhaseContext context) {
-        boolean processImmediately = context.firstNamed(InternalNamedCauses.Tracker.PROCESS_IMMEDIATELY, Boolean.class).get();
-        if (processImmediately) {
+        if (context.shouldProcessImmediately()) {
             TrackingUtil.processBlockCaptures(Lists.newArrayList(snapshot), tracker, this, context);
             context.getCapturedBlocks().remove(snapshot);
         }

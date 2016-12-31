@@ -137,9 +137,4 @@ public final class GenerationPhase extends TrackingPhase {
         return true;
     }
 
-    @Override
-    public boolean appendPreBlockProtectedCheck(Cause.Builder builder, IPhaseState phaseState, PhaseContext context, CauseTracker causeTracker) {
-        return false;
-    }
-
 }
