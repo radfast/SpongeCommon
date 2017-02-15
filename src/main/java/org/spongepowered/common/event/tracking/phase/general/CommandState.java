@@ -139,20 +139,4 @@ final class CommandState extends GeneralState {
     public boolean spawnEntityOrCapture(CauseTracker causeTracker, PhaseContext context, Entity entity, int chunkX, int chunkZ) {
         return context.getCapturedEntities().add(entity);
     }
-
-    @Override
-    public Cause generateTeleportCause(PhaseContext context) {
-        final Entity entity = context.getSource(Entity.class).orElse(null);
-        if (entity != null) {
-            return Cause
-                    .source(EntityTeleportCause.builder()
-                            .entity(entity)
-                            .type(TeleportTypes.COMMAND)
-                            .build()
-                    )
-                    .build();
-        }
-
-        return Cause.of(NamedCause.source(TeleportCause.builder().type(TeleportTypes.COMMAND).build()));
-    }
 }

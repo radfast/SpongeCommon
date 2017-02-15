@@ -32,11 +32,10 @@ import net.minecraft.entity.EnumCreatureType;
 import net.minecraft.entity.IEntityLivingData;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.server.management.PlayerChunkMapEntry;
+import net.minecraft.util.WeightedRandom;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.ChunkPos;
 import net.minecraft.util.math.MathHelper;
-import net.minecraft.util.WeightedRandom;
-import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 import net.minecraft.world.WorldEntitySpawner;
 import net.minecraft.world.WorldServer;
@@ -46,7 +45,6 @@ import org.spongepowered.api.Sponge;
 import org.spongepowered.api.entity.EntityType;
 import org.spongepowered.api.entity.Transform;
 import org.spongepowered.api.event.SpongeEventFactory;
-import org.spongepowered.api.event.cause.Cause;
 import org.spongepowered.api.event.entity.ConstructEntityEvent;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
@@ -114,11 +112,10 @@ public abstract class MixinWorldEntitySpawner {
         }
 
         IMixinWorldServer spongeWorld = ((IMixinWorldServer) worldServerIn);
-        final Cause cause = Cause.of(NamedCause.source(worldServerIn));
         if (CauseTracker.ENABLED) {
             CauseTracker causeTracker = spongeWorld.getCauseTracker();
             causeTracker.switchToPhase(GenerationPhase.State.WORLD_SPAWNER_SPAWNING, PhaseContext.start()
-                .source(worldServer)
+                .source(worldServerIn)
                 .addCaptures()
                 .complete());
         }
@@ -242,7 +239,7 @@ public abstract class MixinWorldEntitySpawner {
                                     if (entityType != null) {
                                         Vector3d vector3d = new Vector3d(spawnX, spawnY, spawnZ);
                                         Transform<org.spongepowered.api.world.World> transform = new Transform<>((org.spongepowered.api.world.World) worldServerIn, vector3d);
-                                        ConstructEntityEvent.Pre event = SpongeEventFactory.createConstructEntityEventPre(cause, entityType, transform);
+                                        ConstructEntityEvent.Pre event = SpongeEventFactory.createConstructEntityEventPre(Sponge.getCauseStackManager().getCurrentCause(), entityType, transform);
                                         if (SpongeImpl.postEvent(event)) {
                                             continue;
                                         }

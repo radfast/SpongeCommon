@@ -61,6 +61,7 @@ import org.spongepowered.api.entity.ai.task.builtin.creature.horse.RunAroundLike
 import org.spongepowered.api.entity.ai.task.builtin.creature.target.FindNearestAttackableTargetAITask;
 import org.spongepowered.api.entity.living.player.gamemode.GameMode;
 import org.spongepowered.api.entity.living.player.tab.TabListEntry;
+import org.spongepowered.api.event.cause.EventContextKey;
 import org.spongepowered.api.event.cause.entity.damage.DamageModifierType;
 import org.spongepowered.api.event.cause.entity.damage.DamageType;
 import org.spongepowered.api.event.cause.entity.damage.source.*;
@@ -168,6 +169,7 @@ import org.spongepowered.common.registry.type.event.DamageModifierTypeRegistryMo
 import org.spongepowered.common.registry.type.event.DamageSourceRegistryModule;
 import org.spongepowered.common.registry.type.event.DamageTypeRegistryModule;
 import org.spongepowered.common.registry.type.event.DismountTypeRegistryModule;
+import org.spongepowered.common.registry.type.event.EventContextKeysModule;
 import org.spongepowered.common.registry.type.event.SpawnTypeRegistryModule;
 import org.spongepowered.common.registry.type.event.TeleportTypeRegistryModule;
 import org.spongepowered.common.registry.type.extra.FluidTypeRegistryModule;
@@ -421,6 +423,7 @@ public final class CommonModuleRegistry {
             .registerModule(InventoryArchetype.class, InventoryArchetypeRegistryModule.getInstance())
             .registerModule(SkeletonType.class, new SkeletonTypeRegistryModule())
             .registerModule(StructureMode.class, new StructureModeRegistryModule())
+            .registerModule(EventContextKey.class, EventContextKeysModule.getInstance())
 
             // Miscellaneous Registries
             .registerModule(DungeonMobRegistryModule.getInstance())

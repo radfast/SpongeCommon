@@ -49,6 +49,7 @@ import org.spongepowered.common.command.SpongeCommandManager;
 import org.spongepowered.common.config.SpongeConfigManager;
 import org.spongepowered.common.data.SpongeDataManager;
 import org.spongepowered.common.data.property.SpongePropertyRegistry;
+import org.spongepowered.common.event.SpongeCauseStackManager;
 import org.spongepowered.common.registry.SpongeGameRegistry;
 import org.spongepowered.common.scheduler.SpongeScheduler;
 
