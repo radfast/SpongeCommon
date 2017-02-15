@@ -69,6 +69,7 @@ import net.minecraft.world.WorldServer;
 import org.spongepowered.api.Sponge;
 import org.spongepowered.api.event.SpongeEventFactory;
 import org.spongepowered.api.event.cause.EventContextKeys;
+import org.spongepowered.api.event.cause.entity.damage.DamageFunction;
 import org.spongepowered.api.event.cause.entity.damage.DamageModifier;
 import org.spongepowered.api.event.cause.entity.damage.DamageTypes;
 import org.spongepowered.api.event.cause.entity.damage.source.EntityDamageSource;
@@ -494,7 +495,7 @@ public abstract class MixinEntityPlayer extends MixinEntityLivingBase implements
                 final EnumCreatureAttribute creatureAttribute = targetEntity instanceof EntityLivingBase
                                                                 ? ((EntityLivingBase) targetEntity).getCreatureAttribute()
                                                                 : EnumCreatureAttribute.UNDEFINED;
-                final List<Tuple<DamageModifier, Function<? super Double, Double>>> enchantmentModifierFunctions = DamageEventHandler.createAttackEnchamntmentFunction(this.getHeldItemMainhand(), creatureAttribute, attackStrength);
+                final List<DamageFunction> enchantmentModifierFunctions = DamageEventHandler.createAttackEnchamntmentFunction(this.getHeldItemMainhand(), creatureAttribute, attackStrength);
                 // This is kept for the post-damage event handling
                 final List<DamageModifier> enchantmentModifiers = enchantmentModifierFunctions.stream().map(Tuple::getFirst).collect(Collectors.toList());
 

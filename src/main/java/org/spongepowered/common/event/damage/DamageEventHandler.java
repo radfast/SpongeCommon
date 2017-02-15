@@ -48,6 +48,8 @@ import org.spongepowered.api.Sponge;
 import org.spongepowered.api.effect.potion.PotionEffect;
 import org.spongepowered.api.event.cause.Cause;
 import org.spongepowered.api.event.cause.EventContext;
+import org.spongepowered.api.event.cause.entity.damage.DamageFunction;
+import org.spongepowered.api.event.cause.EventContext;
 import org.spongepowered.api.event.cause.EventContextKeys;
 import org.spongepowered.api.event.cause.entity.damage.DamageModifier;
 import org.spongepowered.api.event.cause.entity.damage.DamageModifierTypes;
@@ -90,28 +92,27 @@ public class DamageEventHandler {
         return damage -> -(damage - ((damage.floatValue() * (float) modifier) / 25.0F));
     }
 
-
-    public static Optional<Tuple<DamageModifier, Function<? super Double, Double>>> createHardHatModifier(EntityLivingBase entityLivingBase,
+    public static Optional<DamageFunction> createHardHatModifier(EntityLivingBase entityLivingBase,
                                                                                                           DamageSource damageSource) {
-        if ((damageSource instanceof FallingBlockDamageSource) && entityLivingBase.getItemStackFromSlot(EntityEquipmentSlot.HEAD) != null) {
+        if ((damageSource instanceof FallingBlockDamageSource) && !entityLivingBase.getItemStackFromSlot(EntityEquipmentSlot.HEAD).isEmpty()) {
             DamageModifier modifier = DamageModifier.builder()
                 .cause(
                     Cause.of(EventContext.empty(), ((ItemStack) entityLivingBase.getItemStackFromSlot(EntityEquipmentSlot.HEAD)).createSnapshot()))
                 .type(DamageModifierTypes.HARD_HAT)
                 .build();
-            return Optional.of(new Tuple<>(modifier, HARD_HAT_FUNCTION));
+            return Optional.of(new DamageFunction(modifier, HARD_HAT_FUNCTION));
         }
         return Optional.empty();
     }
 
     private static double damageToHandle;
 
-    public static Optional<List<Tuple<DamageModifier, Function<? super Double, Double>>>> createArmorModifiers(EntityLivingBase entityLivingBase,
+    public static Optional<List<DamageFunction>> createArmorModifiers(EntityLivingBase entityLivingBase,
                                                                                                                DamageSource damageSource, double damage) {
         if (!damageSource.isDamageAbsolute()) {
             damage *= 25;
             net.minecraft.item.ItemStack[] inventory = Iterables.toArray(entityLivingBase.getArmorInventoryList(), net.minecraft.item.ItemStack.class);
-            List<Tuple<DamageModifier, Function<? super Double, Double>>> modifiers = new ArrayList<>();
+            List<DamageFunction> modifiers = new ArrayList<>();
             List<DamageObject> damageObjects = new ArrayList<>();
 
             for (int index = 0; index < inventory.length; index++) {
@@ -164,7 +165,7 @@ public class DamageEventHandler {
                                     object)) // We need this object later on.
                     .type(DamageModifierTypes.ARMOR)
                     .build();
-                modifiers.add(new Tuple<>(modifier, function));
+                modifiers.add(new DamageFunction(modifier, function));
                 first = false;
             }
             if (!modifiers.isEmpty()) {
@@ -214,11 +215,11 @@ public class DamageEventHandler {
         }
     }
 
-    public static Optional<Tuple<DamageModifier, Function<? super Double, Double>>> createResistanceModifier(EntityLivingBase entityLivingBase,
+    public static Optional<DamageFunction> createResistanceModifier(EntityLivingBase entityLivingBase,
                                                                                                              DamageSource damageSource) {
         if (!damageSource.isDamageAbsolute() && entityLivingBase.isPotionActive(MobEffects.RESISTANCE) && damageSource != DamageSource.OUT_OF_WORLD) {
             PotionEffect effect = ((PotionEffect) entityLivingBase.getActivePotionEffect(MobEffects.RESISTANCE));
-            return Optional.of(new Tuple<>(DamageModifier.builder()
+            return Optional.of(new DamageFunction(DamageModifier.builder()
                                                .cause(Cause.of(EventContext.empty(), effect))
                                                .type(DamageModifierTypes.DEFENSIVE_POTION_EFFECT)
                                                .build(), createResistanceFunction(effect.getAmplifier())));
@@ -229,12 +230,12 @@ public class DamageEventHandler {
     private static double enchantmentDamageTracked;
     private static double previousEnchantmentModifier = 0;
 
-    public static Optional<List<Tuple<DamageModifier, Function<? super Double, Double>>>> createEnchantmentModifiers(EntityLivingBase entityLivingBase, DamageSource damageSource) {
+    public static Optional<List<DamageFunction>> createEnchantmentModifiers(EntityLivingBase entityLivingBase, DamageSource damageSource) {
         Iterable<net.minecraft.item.ItemStack> inventory = entityLivingBase.getArmorInventoryList();
         if (EnchantmentHelper.getEnchantmentModifierDamage(Lists.newArrayList(entityLivingBase.getArmorInventoryList()), damageSource) == 0) {
             return Optional.empty();
         }
-        List<Tuple<DamageModifier, Function<? super Double, Double>>> modifiers = new ArrayList<>();
+        List<DamageFunction> modifiers = new ArrayList<>();
         boolean first = true;
         int totalModifier = 0;
         for (net.minecraft.item.ItemStack itemStack : inventory) {
@@ -293,8 +294,8 @@ public class DamageEventHandler {
                         DamageModifier enchantmentModifier = DamageModifier.builder()
                             .cause(Cause.of(EventContext.empty(), enchantment, snapshot, entityLivingBase))
                             .type(DamageModifierTypes.ARMOR_ENCHANTMENT)
-                            .build(); 
-                        modifiers.add(new Tuple<>(enchantmentModifier, enchantmentFunction));
+                            .build();
+                        modifiers.add(new DamageFunction(enchantmentModifier, enchantmentFunction));
                     }
                 }
             }
@@ -305,7 +306,7 @@ public class DamageEventHandler {
         return Optional.empty();
     }
 
-    public static Optional<Tuple<DamageModifier, Function<? super Double, Double>>> createAbsorptionModifier(EntityLivingBase entityLivingBase,
+    public static Optional<DamageFunction> createAbsorptionModifier(EntityLivingBase entityLivingBase,
                                                                                                              DamageSource damageSource) {
         final float absorptionAmount = entityLivingBase.getAbsorptionAmount();
         if (absorptionAmount > 0) {
@@ -315,7 +316,7 @@ public class DamageEventHandler {
                 .cause(Cause.of(EventContext.empty(), entityLivingBase))
                 .type(DamageModifierTypes.ABSORPTION)
                 .build();
-            return Optional.of(new Tuple<>(modifier, function));
+            return Optional.of(new DamageFunction(modifier, function));
         }
         return Optional.empty();
     }
@@ -367,9 +368,9 @@ public class DamageEventHandler {
         Sponge.getCauseStackManager().pushCause(damageSource);
     }
 
-    public static List<Tuple<DamageModifier, Function<? super Double, Double>>> createAttackEnchamntmentFunction(
+    public static List<DamageFunction> createAttackEnchamntmentFunction(
             @Nullable net.minecraft.item.ItemStack heldItem, EnumCreatureAttribute creatureAttribute, float attackStrength) {
-        final List<Tuple<DamageModifier, Function<? super Double, Double>>> damageModifierFunctions = new ArrayList<>();
+        final List<DamageFunction> damageModifierFunctions = new ArrayList<>();
         if (heldItem != null) {
             Supplier<ItemStackSnapshot> supplier = new Supplier<ItemStackSnapshot>() {
                 private ItemStackSnapshot snapshot;
@@ -396,7 +397,7 @@ public class DamageEventHandler {
                                 .build();
                         Function<? super Double, Double> enchantmentFunction = (damage) ->
                                 (double) enchantment.calcDamageByCreature(enchantmentLevel, creatureAttribute) * attackStrength;
-                        damageModifierFunctions.add(new Tuple<>(enchantmentModifier, enchantmentFunction));
+                        damageModifierFunctions.add(new DamageFunction(enchantmentModifier, enchantmentFunction));
                     }
                 }
             }
@@ -405,13 +406,13 @@ public class DamageEventHandler {
         return damageModifierFunctions;
     }
 
-    public static Tuple<DamageModifier, Function<? super Double, Double>> provideCriticalAttackTuple(EntityPlayer player) {
+    public static DamageFunction provideCriticalAttackTuple(EntityPlayer player) {
         final DamageModifier modifier = DamageModifier.builder()
                 .cause(Cause.of(EventContext.empty(), player))
                 .type(DamageModifierTypes.CRITICAL_HIT)
                 .build();
         Function<? super Double, Double> function = (damage) -> damage * 1.5F;
-        return new Tuple<>(modifier, function);
+        return new DamageFunction(modifier, function);
     }
 
     public static DamageSource getEntityDamageSource(@Nullable Entity entity) {
@@ -427,7 +428,7 @@ public class DamageEventHandler {
         return null;
     }
 
-    public static Tuple<DamageModifier, Function<? super Double, Double>> provideCooldownAttackStrengthFunction(EntityPlayer player,
+    public static DamageFunction provideCooldownAttackStrengthFunction(EntityPlayer player,
             float attackStrength) {
         final DamageModifier modifier = DamageModifier.builder()
                 .cause(Cause.of(EventContext.empty(), player))
@@ -436,16 +437,16 @@ public class DamageEventHandler {
         // The formula is as follows:
         // Since damage needs to be "multiplied", this needs to basically add negative damage but re-add the "reduced" damage.
         Function<? super Double, Double> function = (damage) -> - damage + (damage * (0.2F + attackStrength * attackStrength * 0.8F));
-        return new Tuple<>(modifier, function);
+        return new DamageFunction(modifier, function);
     }
 
-    public static Optional<Tuple<DamageModifier, Function<? super Double, Double>>> createShieldFunction(EntityLivingBase entity, DamageSource source, float amount) {
+    public static Optional<DamageFunction> createShieldFunction(EntityLivingBase entity, DamageSource source, float amount) {
         if (entity.isActiveItemStackBlocking() && amount > 0.0 && entity.canBlockDamageSource(source)) {
             final DamageModifier modifier = DamageModifier.builder()
                     .cause(Cause.of(EventContext.empty(), entity, ((ItemStack) entity.getActiveItemStack()).createSnapshot()))
                     .type(DamageModifierTypes.SHIELD)
                     .build();
-            return Optional.of(new Tuple<DamageModifier, Function<? super Double, Double>>(modifier, (damage) -> -damage));
+            return Optional.of(new DamageFunction(modifier, (damage) -> -damage));
         }
         return Optional.empty();
     }

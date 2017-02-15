@@ -59,6 +59,7 @@ import org.spongepowered.api.entity.Transform;
 import org.spongepowered.api.entity.living.Living;
 import org.spongepowered.api.event.SpongeEventFactory;
 import org.spongepowered.api.event.cause.Cause;
+import org.spongepowered.api.event.cause.entity.damage.DamageFunction;
 import org.spongepowered.api.event.cause.entity.damage.DamageModifier;
 import org.spongepowered.api.event.cause.entity.damage.source.FallingBlockDamageSource;
 import org.spongepowered.api.event.entity.DamageEntityEvent;
@@ -174,9 +175,9 @@ public abstract class MixinEntityLivingBase extends MixinEntity implements Livin
     @Shadow protected abstract boolean canDropLoot();
     @Shadow public abstract Random getRNG();
     @Shadow protected abstract void blockUsingShield(EntityLivingBase p_190629_1_);
-    @Shadow public abstract boolean checkTotemDeathProtection(DamageSource p_190628_1_);
-    @Shadow private boolean canBlockDamageSource(DamageSource p_184583_1_) { // canBlockDamageSource
-        return false; // Shadowed
+    @Shadow public abstract boolean canBlockDamageSource(DamageSource p_184583_1_);
+    @Shadow private boolean checkTotemDeathProtection(DamageSource p_190628_1_) {
+        return false; // SHADOWED
     }
 
     @Override
@@ -566,18 +567,18 @@ public abstract class MixinEntityLivingBase extends MixinEntity implements Livin
                 damage = 0;
             }
 
-            List<Tuple<DamageModifier, Function<? super Double, Double>>> originalFunctions = new ArrayList<>();
-            Optional<Tuple<DamageModifier, Function<? super Double, Double>>> hardHatFunction =
+            List<DamageFunction> originalFunctions = new ArrayList<>();
+            Optional<DamageFunction> hardHatFunction =
                 DamageEventHandler.createHardHatModifier((EntityLivingBase) (Object) this, damageSource);
-            Optional<List<Tuple<DamageModifier, Function<? super Double, Double>>>> armorFunction =
+            Optional<List<DamageFunction>> armorFunction =
                 provideArmorModifiers((EntityLivingBase) (Object) this, damageSource, damage);
-            Optional<Tuple<DamageModifier, Function<? super Double, Double>>> resistanceFunction =
+            Optional<DamageFunction> resistanceFunction =
                 DamageEventHandler.createResistanceModifier((EntityLivingBase) (Object) this, damageSource);
-            Optional<List<Tuple<DamageModifier, Function<? super Double, Double>>>> armorEnchantments =
+            Optional<List<DamageFunction>> armorEnchantments =
                 DamageEventHandler.createEnchantmentModifiers((EntityLivingBase) (Object) this, damageSource);
-            Optional<Tuple<DamageModifier, Function<? super Double, Double>>> absorptionFunction =
+            Optional<DamageFunction> absorptionFunction =
                 DamageEventHandler.createAbsorptionModifier((EntityLivingBase) (Object) this, damageSource);
-            Optional<Tuple<DamageModifier, Function<? super Double, Double>>> shieldFunction =
+            Optional<DamageFunction> shieldFunction =
                 DamageEventHandler.createShieldFunction((EntityLivingBase) (Object) this, damageSource, damage);
 
             if (hardHatFunction.isPresent()) {
@@ -637,7 +638,7 @@ public abstract class MixinEntityLivingBase extends MixinEntity implements Livin
 
             // Armor
             if (!damageSource.isUnblockable()) {
-                for (Tuple<DamageModifier, Function<? super Double, Double>> modifier : event.getModifiers()) {
+                for (DamageFunction modifier : event.getModifiers()) {
                     applyArmorDamage((EntityLivingBase) (Object) this, damageSource, event, modifier.getFirst());
                 }
             }
@@ -788,7 +789,7 @@ public abstract class MixinEntityLivingBase extends MixinEntity implements Livin
     }
 
     @Override
-    public Optional<List<Tuple<DamageModifier, Function<? super Double, Double>>>> provideArmorModifiers(EntityLivingBase entityLivingBase,
+    public Optional<List<DamageFunction>> provideArmorModifiers(EntityLivingBase entityLivingBase,
                                                                                                          DamageSource source, double damage) {
         return DamageEventHandler.createArmorModifiers(entityLivingBase, source, damage);
     }
