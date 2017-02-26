@@ -73,6 +73,7 @@ import org.spongepowered.common.item.inventory.util.ItemStackUtil;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.DoubleUnaryOperator;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -81,18 +82,19 @@ import javax.annotation.Nullable;
 
 public class DamageEventHandler {
 
-    public static final Function<Double, Double> HARD_HAT_FUNCTION = damage -> -(damage - (damage * 0.75F));
-    public static final Function<Double, Double> BLOCKING_FUNCTION = damage -> -(damage - ((1.0F + damage) * 0.5F));
+    public static final DoubleUnaryOperator HARD_HAT_FUNCTION = damage -> -(damage - (damage * 0.75F));
+    public static final DoubleUnaryOperator BLOCKING_FUNCTION = damage -> -(damage - ((1.0F + damage) * 0.5F));
 
-    public static Function<Double, Double> createResistanceFunction(int resistanceAmplifier) {
+    public static DoubleUnaryOperator createResistanceFunction(int resistanceAmplifier) {
         final int base = (resistanceAmplifier + 1) * 5;
         final int modifier = 25 - base;
-        return damage -> -(damage - ((damage.floatValue() * (float) modifier) / 25.0F));
+        return damage -> -(damage - ((damage * modifier) / 25.0F));
     }
 
     public static Optional<DamageFunction> createHardHatModifier(EntityLivingBase entityLivingBase,
-                                                                                                          DamageSource damageSource) {
+            DamageSource damageSource) {
         if ((damageSource instanceof FallingBlockDamageSource) && !entityLivingBase.getItemStackFromSlot(EntityEquipmentSlot.HEAD).isEmpty()) {
+            // TODO: direct cause creation: bad bad bad
             DamageModifier modifier = DamageModifier.builder()
                 .cause(
                     Cause.of(EventContext.empty(), ((ItemStack) entityLivingBase.getItemStackFromSlot(EntityEquipmentSlot.HEAD)).createSnapshot()))
@@ -106,7 +108,7 @@ public class DamageEventHandler {
     private static double damageToHandle;
 
     public static Optional<List<DamageFunction>> createArmorModifiers(EntityLivingBase entityLivingBase,
-                                                                                                               DamageSource damageSource, double damage) {
+            DamageSource damageSource, double damage) {
         if (!damageSource.isDamageAbsolute()) {
             damage *= 25;
             net.minecraft.item.ItemStack[] inventory = Iterables.toArray(entityLivingBase.getArmorInventoryList(), net.minecraft.item.ItemStack.class);
@@ -141,7 +143,7 @@ public class DamageEventHandler {
                     object.previousDamage = damage;
                     object.augment = true;
                 }
-                Function<? super Double, Double> function = incomingDamage -> {
+                DoubleUnaryOperator function = incomingDamage -> {
                     incomingDamage *= 25;
                     if (object.augment) {
                         // This is the damage that needs to be archived for the "first" armor modifier
@@ -157,6 +159,7 @@ public class DamageEventHandler {
                 };
                 ratio += prop.ratio;
 
+                // TODO: direct cause creation: bad bad bad
                 DamageModifier modifier = DamageModifier.builder()
                     .cause(Cause.of(EventContext.empty(), ((org.spongepowered.api.item.inventory.ItemStack) inventory[prop.slot]).createSnapshot(),
                                     prop, // We need this property to refer to the slot.
@@ -213,10 +216,10 @@ public class DamageEventHandler {
         }
     }
 
-    public static Optional<DamageFunction> createResistanceModifier(EntityLivingBase entityLivingBase,
-                                                                                                             DamageSource damageSource) {
+    public static Optional<DamageFunction> createResistanceModifier(EntityLivingBase entityLivingBase, DamageSource damageSource) {
         if (!damageSource.isDamageAbsolute() && entityLivingBase.isPotionActive(MobEffects.RESISTANCE) && damageSource != DamageSource.OUT_OF_WORLD) {
             PotionEffect effect = ((PotionEffect) entityLivingBase.getActivePotionEffect(MobEffects.RESISTANCE));
+            // TODO: direct cause creation: bad bad bad
             return Optional.of(new DamageFunction(DamageModifier.builder()
                                                .cause(Cause.of(EventContext.empty(), effect))
                                                .type(DamageModifierTypes.DEFENSIVE_POTION_EFFECT)
@@ -265,7 +268,7 @@ public class DamageEventHandler {
                         totalModifier += modifier;
                         object.augment = first;
                         object.ratio = modifier;
-                        Function<? super Double, Double> enchantmentFunction = damageIn -> {
+                        DoubleUnaryOperator enchantmentFunction = damageIn -> {
                             if (object.augment) {
                                 enchantmentDamageTracked = damageIn;
                             }
@@ -280,7 +283,7 @@ public class DamageEventHandler {
                             double magicModifier;
                             if (modifier > 0 && modifier <= 20) {
                                 int j = 25 - modifier;
-                                magicModifier = modifierDamage * (float) j;
+                                magicModifier = modifierDamage * j;
                                 modifierDamage = magicModifier / 25.0F;
                             }
                             return - Math.max(actualDamage - modifierDamage, 0.0D);
@@ -289,6 +292,7 @@ public class DamageEventHandler {
                             first = false;
                         }
 
+                        // TODO: direct cause creation: bad bad bad
                         DamageModifier enchantmentModifier = DamageModifier.builder()
                             .cause(Cause.of(EventContext.empty(), enchantment, snapshot, entityLivingBase))
                             .type(DamageModifierTypes.ARMOR_ENCHANTMENT)
@@ -308,8 +312,9 @@ public class DamageEventHandler {
                                                                                                              DamageSource damageSource) {
         final float absorptionAmount = entityLivingBase.getAbsorptionAmount();
         if (absorptionAmount > 0) {
-            Function<? super Double, Double> function = damage ->
+            DoubleUnaryOperator function = damage ->
                 -(Math.max(damage - Math.max(damage - absorptionAmount, 0.0F), 0.0F));
+                // TODO: direct cause creation: bad bad bad
             DamageModifier modifier = DamageModifier.builder()
                 .cause(Cause.of(EventContext.empty(), entityLivingBase))
                 .type(DamageModifierTypes.ABSORPTION)
@@ -390,11 +395,12 @@ public class DamageEventHandler {
 
                     final Enchantment enchantment = Enchantment.getEnchantmentByID(j);
                     if (enchantment != null) {
+                        // TODO: direct cause creation: bad bad bad
                         final DamageModifier enchantmentModifier = DamageModifier.builder()
                                 .type(DamageModifierTypes.WEAPON_ENCHANTMENT)
                                 .cause(Cause.of(EventContext.empty(), supplier.get(), enchantment))
                                 .build();
-                        Function<? super Double, Double> enchantmentFunction = (damage) ->
+                        DoubleUnaryOperator enchantmentFunction = (damage) ->
                                 (double) enchantment.calcDamageByCreature(enchantmentLevel, creatureAttribute) * attackStrength;
                         damageModifierFunctions.add(new DamageFunction(enchantmentModifier, enchantmentFunction));
                     }
@@ -406,11 +412,12 @@ public class DamageEventHandler {
     }
 
     public static DamageFunction provideCriticalAttackTuple(EntityPlayer player) {
+        // TODO: direct cause creation: bad bad bad
         final DamageModifier modifier = DamageModifier.builder()
                 .cause(Cause.of(EventContext.empty(), player))
                 .type(DamageModifierTypes.CRITICAL_HIT)
                 .build();
-        Function<? super Double, Double> function = (damage) -> damage * 1.5F;
+        DoubleUnaryOperator function = (damage) -> damage * 1.5F;
         return new DamageFunction(modifier, function);
     }
 
@@ -429,18 +436,20 @@ public class DamageEventHandler {
 
     public static DamageFunction provideCooldownAttackStrengthFunction(EntityPlayer player,
             float attackStrength) {
+        // TODO: direct cause creation: bad bad bad
         final DamageModifier modifier = DamageModifier.builder()
                 .cause(Cause.of(EventContext.empty(), player))
                 .type(DamageModifierTypes.ATTACK_COOLDOWN)
                 .build();
         // The formula is as follows:
         // Since damage needs to be "multiplied", this needs to basically add negative damage but re-add the "reduced" damage.
-        Function<? super Double, Double> function = (damage) -> - damage + (damage * (0.2F + attackStrength * attackStrength * 0.8F));
+        DoubleUnaryOperator function = (damage) -> - damage + (damage * (0.2F + attackStrength * attackStrength * 0.8F));
         return new DamageFunction(modifier, function);
     }
 
     public static Optional<DamageFunction> createShieldFunction(EntityLivingBase entity, DamageSource source, float amount) {
         if (entity.isActiveItemStackBlocking() && amount > 0.0 && entity.canBlockDamageSource(source)) {
+            // TODO: direct cause creation: bad bad bad
             final DamageModifier modifier = DamageModifier.builder()
                     .cause(Cause.of(EventContext.empty(), entity, ((ItemStack) entity.getActiveItemStack()).createSnapshot()))
                     .type(DamageModifierTypes.SHIELD)

@@ -639,13 +639,13 @@ public abstract class MixinEntityLivingBase extends MixinEntity implements Livin
             // Armor
             if (!damageSource.isUnblockable()) {
                 for (DamageFunction modifier : event.getModifiers()) {
-                    applyArmorDamage((EntityLivingBase) (Object) this, damageSource, event, modifier.getFirst());
+                    applyArmorDamage((EntityLivingBase) (Object) this, damageSource, event, modifier.getModifier());
                 }
             }
 
             double absorptionModifier = 0;
             if (absorptionFunction.isPresent()) {
-                absorptionModifier = event.getDamage(absorptionFunction.get().getFirst());
+                absorptionModifier = event.getDamage(absorptionFunction.get().getModifier());
             }
 
             this.setAbsorptionAmount(Math.max(this.getAbsorptionAmount() + (float) absorptionModifier, 0.0F));

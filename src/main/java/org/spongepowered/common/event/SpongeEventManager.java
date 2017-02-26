@@ -298,10 +298,24 @@ public class SpongeEventManager implements EventManager {
 
     @SuppressWarnings("unchecked")
     protected static boolean post(Event event, List<RegisteredListener<?>> handlers) {
+        if(!Sponge.getServer().isMainThread()) {
+            // If this event is being posted asynchronously then we don't want
+            // to do any timing or cause stack changes
+            for (@SuppressWarnings("rawtypes") RegisteredListener handler : handlers) {
+                try {
+                    ((AbstractEvent) event).currentOrder = handler.getOrder();
+                    handler.handle(event);
+                } catch (Throwable e) {
+                    SpongeImpl.getLogger().error("Could not pass {} to {}", event.getClass().getSimpleName(), handler.getPlugin(), e);
+                }
+            }
+            ((AbstractEvent) event).currentOrder = null;
+            return event instanceof Cancellable && ((Cancellable) event).isCancelled();
+        }
         TimingsManager.PLUGIN_EVENT_HANDLER.startTimingIfSync();
         for (@SuppressWarnings("rawtypes") RegisteredListener handler : handlers) {
-            Object frame = Sponge.getCauseStackManager().pushCauseFrame();
             Sponge.getCauseStackManager().pushCause(handler.getPlugin());
+            Object frame = Sponge.getCauseStackManager().pushCauseFrame();
             try {
                 handler.getTimingsHandler().startTimingIfSync();
                 ((AbstractEvent) event).currentOrder = handler.getOrder();
@@ -312,6 +326,7 @@ public class SpongeEventManager implements EventManager {
                 SpongeImpl.getLogger().error("Could not pass {} to {}", event.getClass().getSimpleName(), handler.getPlugin(), e);
             }
             Sponge.getCauseStackManager().popCauseFrame(frame);
+            Sponge.getCauseStackManager().popCause();
         }
         TimingsManager.PLUGIN_EVENT_HANDLER.stopTimingIfSync();
         ((AbstractEvent) event).currentOrder = null;

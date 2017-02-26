@@ -69,13 +69,13 @@ import net.minecraft.world.WorldServer;
 import org.spongepowered.api.Sponge;
 import org.spongepowered.api.event.SpongeEventFactory;
 import org.spongepowered.api.event.cause.EventContextKeys;
+import org.spongepowered.api.event.cause.entity.ModifierFunction;
 import org.spongepowered.api.event.cause.entity.damage.DamageFunction;
 import org.spongepowered.api.event.cause.entity.damage.DamageModifier;
 import org.spongepowered.api.event.cause.entity.damage.DamageTypes;
 import org.spongepowered.api.event.cause.entity.damage.source.EntityDamageSource;
 import org.spongepowered.api.event.entity.AttackEntityEvent;
 import org.spongepowered.api.event.entity.DamageEntityEvent;
-import org.spongepowered.api.util.Tuple;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;
 import org.spongepowered.asm.mixin.Shadow;
@@ -104,7 +104,6 @@ import org.spongepowered.common.util.VecHelper;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
@@ -490,18 +489,18 @@ public abstract class MixinEntityPlayer extends MixinEntityLivingBase implements
                 // }
                 float attackStrength = this.getCooledAttackStrength(0.5F);
 
-                final List<Tuple<DamageModifier, Function<? super Double, Double>>> originalFunctions = new ArrayList<>();
+                final List<ModifierFunction<DamageModifier>> originalFunctions = new ArrayList<>();
 
                 final EnumCreatureAttribute creatureAttribute = targetEntity instanceof EntityLivingBase
                                                                 ? ((EntityLivingBase) targetEntity).getCreatureAttribute()
                                                                 : EnumCreatureAttribute.UNDEFINED;
                 final List<DamageFunction> enchantmentModifierFunctions = DamageEventHandler.createAttackEnchamntmentFunction(this.getHeldItemMainhand(), creatureAttribute, attackStrength);
                 // This is kept for the post-damage event handling
-                final List<DamageModifier> enchantmentModifiers = enchantmentModifierFunctions.stream().map(Tuple::getFirst).collect(Collectors.toList());
+                final List<DamageModifier> enchantmentModifiers = enchantmentModifierFunctions.stream().map(ModifierFunction::getModifier).collect(Collectors.toList());
 
                 enchantmentDamage = (float) enchantmentModifierFunctions.stream()
-                        .map(Tuple::getSecond)
-                        .mapToDouble(function -> function.apply(originalBaseDamage))
+                        .map(ModifierFunction::getFunction)
+                        .mapToDouble(function -> function.applyAsDouble(originalBaseDamage))
                         .sum();
                 originalFunctions.addAll(enchantmentModifierFunctions);
                 // Sponge End
