@@ -27,7 +27,7 @@ package org.spongepowered.common.mixin.core.world;
 import static com.google.common.base.Preconditions.checkNotNull;
 
 import com.google.common.base.CaseFormat;
-import com.google.common.base.Objects;
+import com.google.common.base.MoreObjects;
 import com.google.gson.JsonParseException;
 import com.google.gson.JsonParser;
 import net.minecraft.world.WorldType;
@@ -126,7 +126,7 @@ public abstract class MixinWorldType implements GeneratorType {
 
     @Override
     public String toString() {
-        return Objects.toStringHelper(this)
+        return MoreObjects.toStringHelper(this)
                 .add("id", getId())
                 .add("name", getName())
                 .add("settings", getGeneratorSettings())
